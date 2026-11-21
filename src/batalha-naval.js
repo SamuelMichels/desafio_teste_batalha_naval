@@ -151,6 +151,58 @@ export class Tabuleiro {
 }
 
 /**
+ * mulberry32: gerador pseudoaleatorio com semente. O sorteio da frota precisa
+ * ser reproduzivel, senao nenhum caso de teste que dependa dela roda igual
+ * duas vezes.
+ */
+function geradorComSemente(semente) {
+  let estado = semente >>> 0;
+  return function sortear() {
+    estado = (estado + 0x6d2b79f5) >>> 0;
+    let x = estado;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Sorteia uma frota valida a partir de `semente`, como a lista
+ * [nome, x, y, orientacao] que `posicionar` recebe.
+ *
+ * O sorteio tenta uma coordenada por vez e deixa o proprio `posicionar` dizer
+ * se ela serve: assim existe uma unica definicao de frota valida no codigo, e
+ * o sorteio nao pode discordar da regra que os casos de teste cobram.
+ */
+export function sortearFrota(semente) {
+  const sortear = geradorComSemente(semente);
+  const tabuleiro = new Tabuleiro();
+  const posicoes = [];
+
+  for (const { nome } of FROTA) {
+    let tentativas = 0;
+    while (!tabuleiro.navios.has(nome)) {
+      if (tentativas > 1000) {
+        throw new Error(`Nao consegui posicionar o ${nome} em 1000 tentativas.`);
+      }
+      tentativas += 1;
+
+      const orientacao = ORIENTACOES[Math.floor(sortear() * ORIENTACOES.length)];
+      const x = Math.floor(sortear() * LADO);
+      const y = Math.floor(sortear() * LADO);
+      try {
+        tabuleiro.posicionar(nome, x, y, orientacao);
+        posicoes.push([nome, x, y, orientacao]);
+      } catch {
+        // Nao cabe ou a casa esta ocupada: sorteia outra coordenada.
+      }
+    }
+  }
+
+  return posicoes;
+}
+
+/**
  * Uma partida para dois jogadores, cada um com o seu tabuleiro.
  *
  * Cada jogador atira no tabuleiro do adversario e a vez passa a cada tiro,
@@ -160,14 +212,23 @@ export class Tabuleiro {
  * descrever uma regra que o enunciado nao pede.
  */
 export class Partida {
-  constructor({ frotas } = {}) {
-    if (!Array.isArray(frotas) || frotas.length !== 2) {
+  constructor({ frotas, semente } = {}) {
+    // Com semente, as duas frotas saem de sementes vizinhas: se as duas usassem
+    // a mesma, os dois jogadores teriam a frota identica, e um cenario simetrico
+    // esconde o erro de trocar os tabuleiros.
+    const escolhidas =
+      frotas ?? (semente === undefined ? undefined : [sortearFrota(semente), sortearFrota(semente + 1)]);
+
+    if (escolhidas === undefined) {
+      throw new Error("A partida precisa de frota ou semente.");
+    }
+    if (!Array.isArray(escolhidas) || escolhidas.length !== 2) {
       throw new Error(
-        `A partida e de dois jogadores: recebi ${Array.isArray(frotas) ? frotas.length : 0} frota(s).`,
+        `A partida e de dois jogadores: recebi ${Array.isArray(escolhidas) ? escolhidas.length : 0} frota(s).`,
       );
     }
 
-    this.tabuleiros = frotas.map((posicoes) => {
+    this.tabuleiros = escolhidas.map((posicoes) => {
       const tabuleiro = new Tabuleiro();
       for (const [nome, x, y, orientacao] of posicoes) {
         tabuleiro.posicionar(nome, x, y, orientacao);
