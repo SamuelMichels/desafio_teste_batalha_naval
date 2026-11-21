@@ -89,6 +89,51 @@ export class Tabuleiro {
     this.navios.set(nome, casas);
   }
 
+  /**
+   * Atira em (x, y) e diz o que aconteceu: "agua", "acerto" ou "afundado".
+   * "afundado" e o acerto que completou o navio, e vem com o nome dele, para o
+   * jogador saber o que caiu sem precisar olhar o tabuleiro inteiro.
+   */
+  atirar(x, y) {
+    if (!this.completo()) {
+      throw new Error(
+        `Frota incompleta: ${this.navios.size} de ${FROTA.length} navios posicionados.`,
+      );
+    }
+    if (!dentroDoTabuleiro(x) || !dentroDoTabuleiro(y)) {
+      throw new Error(`A coordenada (${x}, ${y}) esta fora do tabuleiro.`);
+    }
+
+    const casa = this.casas[y][x];
+    if (casa.atingida) {
+      throw new Error(`A casa (${x}, ${y}) ja recebeu tiro.`);
+    }
+
+    casa.atingida = true;
+
+    if (casa.navio === null) {
+      return { resultado: "agua", navio: null };
+    }
+    return {
+      resultado: this.#afundou(casa.navio) ? "afundado" : "acerto",
+      navio: casa.navio,
+    };
+  }
+
+  #afundou(nome) {
+    return this.navios.get(nome).every(([x, y]) => this.casas[y][x].atingida);
+  }
+
+  /** Os navios com todas as casas atingidas. */
+  afundados() {
+    return this.posicionados().filter((nome) => this.#afundou(nome));
+  }
+
+  /** Derrotado e com os quatro navios afundados: a agua nunca derrota ninguem. */
+  derrotado() {
+    return this.afundados().length === FROTA.length;
+  }
+
   /** Os nomes dos navios ja posicionados, na ordem em que entraram. */
   posicionados() {
     return [...this.navios.keys()];
