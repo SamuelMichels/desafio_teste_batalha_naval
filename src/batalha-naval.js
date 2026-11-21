@@ -149,3 +149,76 @@ export class Tabuleiro {
     return this.casas.map((linha) => linha.map((casa) => ({ ...casa })));
   }
 }
+
+/**
+ * Uma partida para dois jogadores, cada um com o seu tabuleiro.
+ *
+ * Cada jogador atira no tabuleiro do adversario e a vez passa a cada tiro,
+ * inclusive quando acerta. O enunciado so diz "uma partida para 02 jogadores";
+ * a alternancia simples e a regra classica, e a variante que da tiro extra no
+ * acerto ficou de fora de proposito, para a especificacao do README nao
+ * descrever uma regra que o enunciado nao pede.
+ */
+export class Partida {
+  constructor({ frotas } = {}) {
+    if (!Array.isArray(frotas) || frotas.length !== 2) {
+      throw new Error(
+        `A partida e de dois jogadores: recebi ${Array.isArray(frotas) ? frotas.length : 0} frota(s).`,
+      );
+    }
+
+    this.tabuleiros = frotas.map((posicoes) => {
+      const tabuleiro = new Tabuleiro();
+      for (const [nome, x, y, orientacao] of posicoes) {
+        tabuleiro.posicionar(nome, x, y, orientacao);
+      }
+      return tabuleiro;
+    });
+
+    this.tabuleiros.forEach((tabuleiro, jogador) => {
+      if (!tabuleiro.completo()) {
+        throw new Error(
+          `Frota incompleta do jogador ${jogador}: ${tabuleiro.posicionados().length} de ${FROTA.length} navios.`,
+        );
+      }
+    });
+
+    this.vez = 0;
+    this.encerrado = false;
+    this.vencedor = null;
+  }
+
+  /**
+   * O jogador da vez atira em (x, y) do tabuleiro do adversario. O tiro
+   * recusado pelo tabuleiro (casa repetida, coordenada fora) sobe como erro e
+   * nao consome a vez: quem errou a chamada nao perde o turno por isso.
+   */
+  atirar(x, y) {
+    if (this.encerrado) {
+      throw new Error(`Partida encerrada: o jogador ${this.vencedor} ganhou.`);
+    }
+
+    const jogador = this.vez;
+    const alvo = 1 - jogador;
+    const tiro = this.tabuleiros[alvo].atirar(x, y);
+
+    this.vez = alvo;
+    if (this.tabuleiros[alvo].derrotado()) {
+      this.encerrado = true;
+      this.vencedor = jogador;
+    }
+
+    return { jogador, alvo, ...tiro };
+  }
+
+  /**
+   * O que `jogador` sabe do tabuleiro do adversario: a casa atingida mostra o
+   * que havia nela, e a casa intacta aparece vazia mesmo quando tem navio. E o
+   * que torna o jogo um jogo: a frota inimiga nao pode ser lida do tabuleiro.
+   */
+  visaoDoAdversario(jogador) {
+    return this.tabuleiros[1 - jogador]
+      .grade()
+      .map((linha) => linha.map((casa) => (casa.atingida ? casa : { navio: null, atingida: false })));
+  }
+}
