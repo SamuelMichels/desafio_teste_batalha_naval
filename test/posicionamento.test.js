@@ -54,6 +54,20 @@ describe("posicionar os navios", () => {
     assert.deepEqual(tabuleiro.posicionados(), POSICOES.map(([nome]) => nome));
   });
 
+  /**
+   * Caso acrescentado depois do teste de mutacao: o mutante que afrouxava
+   * `completo()` para "tres ou mais navios" sobreviveu a suite, porque nenhum
+   * caso olhava o tabuleiro com exatamente tres navios. Tres nao e quatro, e
+   * um tabuleiro de tres navios nao pode liberar o tiro.
+   */
+  test("tres navios nao completam a frota, e o tiro continua recusado", () => {
+    const tabuleiro = comFrota(POSICOES.slice(0, 3));
+
+    assert.equal(tabuleiro.posicionados().length, 3);
+    assert.equal(tabuleiro.completo(), false);
+    assert.throws(() => tabuleiro.atirar(0, 0), /frota incompleta/i);
+  });
+
   test("navios encostados sao aceitos: o enunciado proibe sobrepor, nao vizinhar", () => {
     const tabuleiro = new Tabuleiro();
 
