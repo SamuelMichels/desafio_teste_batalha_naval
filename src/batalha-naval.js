@@ -19,6 +19,10 @@ export const FROTA = [
 /** 5 + 4 + 3 + 2: quantas das 100 casas a frota inteira ocupa. */
 export const CASAS_DA_FROTA = FROTA.reduce((soma, navio) => soma + navio.tamanho, 0);
 
+const ORIENTACOES = ["horizontal", "vertical"];
+
+const dentroDoTabuleiro = (indice) => Number.isInteger(indice) && indice >= 0 && indice < LADO;
+
 export class Tabuleiro {
   constructor() {
     this.casas = [];
@@ -32,6 +36,57 @@ export class Tabuleiro {
 
     /** nome do navio -> as casas que ele ocupa, na ordem em que foi posicionado. */
     this.navios = new Map();
+  }
+
+  /**
+   * Poe `nome` no tabuleiro a partir de (x, y), crescendo para a direita se
+   * horizontal e para baixo se vertical.
+   *
+   * Todas as recusas sao conferidas antes de a primeira casa ser escrita: uma
+   * tentativa recusada nao pode deixar meio navio no tabuleiro.
+   */
+  posicionar(nome, x, y, orientacao) {
+    const navio = FROTA.find((candidato) => candidato.nome === nome);
+    if (navio === undefined) {
+      throw new Error(`O navio "${nome}" nao existe na frota.`);
+    }
+    if (this.navios.has(nome)) {
+      throw new Error(`O navio "${nome}" ja esta posicionado.`);
+    }
+    if (!ORIENTACOES.includes(orientacao)) {
+      throw new Error(`Orientacao invalida: "${orientacao}". Use "horizontal" ou "vertical".`);
+    }
+    if (!dentroDoTabuleiro(x) || !dentroDoTabuleiro(y)) {
+      throw new Error(`A coordenada (${x}, ${y}) esta fora do tabuleiro.`);
+    }
+
+    const passo = orientacao === "horizontal" ? [1, 0] : [0, 1];
+    const casas = Array.from({ length: navio.tamanho }, (_, i) => [
+      x + passo[0] * i,
+      y + passo[1] * i,
+    ]);
+
+    const [fimX, fimY] = casas[casas.length - 1];
+    if (!dentroDoTabuleiro(fimX) || !dentroDoTabuleiro(fimY)) {
+      throw new Error(
+        `O ${nome} ocupa ${navio.tamanho} casas e nao cabe em (${x}, ${y}) na ${orientacao}.`,
+      );
+    }
+
+    // Sobrepor e proibido; encostar nao e. O enunciado so lista os navios e o
+    // tamanho do tabuleiro, e a regra classica do jogo proibe apenas ocupar a
+    // mesma casa duas vezes.
+    for (const [casaX, casaY] of casas) {
+      const ocupante = this.casas[casaY][casaX].navio;
+      if (ocupante !== null) {
+        throw new Error(`A casa (${casaX}, ${casaY}) ja esta ocupada pelo ${ocupante}.`);
+      }
+    }
+
+    for (const [casaX, casaY] of casas) {
+      this.casas[casaY][casaX].navio = nome;
+    }
+    this.navios.set(nome, casas);
   }
 
   /** Os nomes dos navios ja posicionados, na ordem em que entraram. */
